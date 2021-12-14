@@ -10,55 +10,62 @@ const main = async () => {
   const data = await loadXlxs(src);
 
   //Creacion de un objeto memo en el que se ingresen los errores de la informacion
-  const memo = {
-    codigo_est: {},
-    cedula_est: {},
-    direccion_est: {},
-    telefono_est: {},
-    fecha_nacimiento_est: {},
-    telefono_est: {},
-    edad_est: {},
-    calificacion: {},
-    nombre_est: {},
-    apellido_est: {},
-    correo_est: {},
-  };
+  const errors = {};
 
-  const keys = Object.keys(memo);
+  for (let i = 0; i < data[0].length; i++) {
+    const currentColumn = data[0][i];
+    errors[currentColumn] = {};
+  }
+
+
+  const keys = Object.keys(errors);
 
   // Clasificar la informacion cargada en la variable data
   for (let i = 1; i < data.length; i++) {
     for (let j = 0; j < data[0].length; j++) {
       const currentData = data[i][j];
 
-      // Verificar si el dato de una columna está vacío o es inválido(#REF!)
-      if (!isValidString(currentData)) {
-        iter(i, j, memo[keys[j]]);
+      // Verificar si el dato de una columna es nulo
+      if (currentData === null) {
+        save("null", i, currentData, errors[keys[j]]);
         continue;
       }
 
-      // Comprobar reglas de cada columna (cedula, email)
-      if (!constraints(keys[j], currentData+"")) {
-        iter(i, j, memo[keys[j]]);
+      // Verificar si el dato de una columna tiene error (#REF!)
+      if (currentData === "#ERROR_#REF!") {
+        save("#REF!", i, currentData, errors[keys[j]]);
+        continue;
+      }
+
+      // Verificar que se cumplen las reglas de cada columna (cedula, email, ...)
+      if (!constraints(keys[j], currentData + "")) {
+        save("invalid", i, currentData, errors[keys[j]]);
       }
     }
   }
 
-  const total = { ...memo };
+  // Copia del objeto errors al objeto resumne
+  const resume = JSON.parse(JSON.stringify(errors));
 
-  for (const key in total) {
+  // Cuenta los errores de cada campo y almacena el total
+  let totalErrors = 0;
+  for (const key in resume) {
     let count = 0;
-    for (const data in total[key]) {
-      count += parseInt(total[key][data]);
+    for (const data in resume[key]) {
+      const currentErrors = resume[key][data].length;
+      resume[key][data] = currentErrors;
+      count += currentErrors;
     }
-    total[key] = count;
+
+    totalErrors += count;
+    resume[key].total = count;
   }
 
-  console.log(total);
-};
+  console.log("Errors\n", errors);
 
-const isValidString = (string) => {
-  return !(string === null || string === "#ERROR_#REF!");
+  console.log("Errors of Identification Cards\n", errors["cedula_est"]);
+  console.log("\nResume Errors\n", resume);
+  console.log("Total Errors:", totalErrors);
 };
 
 const constraints = (column, string) => {
@@ -69,16 +76,22 @@ const constraints = (column, string) => {
       return isEmail(string);
     case "cedula_est":
       return isIdentificationCard(string);
-    case "direccion_est":
-      return true;
+    case "telefono_est":
+      return isTelephoneNumber(string);
     default:
       return true;
   }
 };
 
 const isStudentCode = (code) => {
-  code = "" + code;
-  return code.length === 11;
+    code = "" + code;
+    return code.length === 11;
+  };
+
+const isTelephoneNumber = (number) => {
+  number = number + "";
+  const regex = /^[2][0-9]{6}$/;
+  return regex.test(number);
 };
 
 const isIdentificationCard = (identificationCard) => {
@@ -119,11 +132,14 @@ const isEmail = (email) => {
   return regex.test(email.toLowerCase());
 };
 
-const iter = (row, index, memo) => {
-  if (memo[row] !== undefined) {
-  } else {
-    memo[row] = 1;
+// Guarda un valor en el objeto memo que es recibido por parámetro
+const save = (type, row, data, memo) => {
+  if (memo[type] === undefined) {
+    memo[type] = [];
   }
+
+  memo[type].push({ row, data });
 };
+
 
 main();
